@@ -2,22 +2,27 @@ name: Sync to Hugging Face Space
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
 
 jobs:
-  sync:
+  sync-to-hf:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Push to Hugging Face
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ secrets.HF_SPACE }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
 
-          git remote add hf https://harshalanka:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}
-          git push hf main --force
+          git clone https://user:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE space
+          rsync -av --exclude '.git' ./ space/
+          cd space
+          git add .
+          git commit -m "Sync from GitHub" || echo "No changes"
+          git push
