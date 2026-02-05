@@ -1,6 +1,5 @@
 ---
 title: Local QA Assistant
-emoji: ❓
 colorFrom: blue
 colorTo: purple
 sdk: gradio
