@@ -26,3 +26,21 @@ jobs:
           git add .
           git commit -m "Sync from GitHub" || echo "No changes"
           git push
+
+      - name: Notify Slack on Success
+        if: success()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"Local Space Sync succeeded for ${{ github.repository }} on branch ${{ github.ref_name }}\"}" \
+          $SLACK_WEBHOOK
+
+      - name: Notify Slack on Failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"Local Space Sync FAILED for ${{ github.repository }}\"}" \
+          $SLACK_WEBHOOK
