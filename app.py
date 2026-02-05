@@ -9,7 +9,6 @@ qa_pipe = None
 def load_model():
     global qa_pipe
     if qa_pipe is None:
-        # Local CPU pipeline
         qa_pipe = pipeline("question-answering", model=MODEL_ID)
     return qa_pipe
 
@@ -22,7 +21,6 @@ def answer_local(context, question):
     if not question:
         return "Please type a question.", ""
 
-    # (optional) avoid super huge inputs that slow CPU
     if len(context) > 8000:
         context = context[:8000] + "..."
 
