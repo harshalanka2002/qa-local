@@ -1,30 +1,17 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import os
 import time
 from transformers import pipeline
 
 app = FastAPI(title="qa-local backend", version="1.0")
 
 MODEL_ID = "deepset/bert-base-uncased-squad2"
-HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
-
 qa_pipe = None
 
 def get_pipe():
     global qa_pipe
     if qa_pipe is None:
-        if HF_TOKEN:
-            qa_pipe = pipeline(
-                "question-answering",
-                model=MODEL_ID,
-                token=HF_TOKEN
-            )
-        else:
-            qa_pipe = pipeline(
-                "question-answering",
-                model=MODEL_ID
-            )
+        qa_pipe = pipeline("question-answering", model=MODEL_ID)
     return qa_pipe
 
 
@@ -53,6 +40,7 @@ def qa(req: QARequest):
     if not question:
         return {"answer": "Please type a question.", "meta": "bad_request"}
 
+    # Safety trim for large context
     if len(context) > 8000:
         context = context[:8000] + "..."
 
