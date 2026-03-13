@@ -1,18 +1,32 @@
-import time
-from typing import Optional, Dict, Any
-import threading
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
+import os
+import time
 from transformers import pipeline
-
-MODEL_ID = "deepset/bert-base-uncased-squad2"
 
 app = FastAPI(title="qa-local backend", version="1.0")
 
-# Load once, reuse (saves time)
+MODEL_ID = "deepset/bert-base-uncased-squad2"
+HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
+
 qa_pipe = None
-pipe_lock = threading.Lock()
+
+def get_pipe():
+    global qa_pipe
+    if qa_pipe is None:
+        # Use HF token if available for more reliable model download
+        if HF_TOKEN:
+            qa_pipe = pipeline(
+                "question-answering",
+                model=MODEL_ID,
+                token=HF_TOKEN
+            )
+        else:
+            qa_pipe = pipeline(
+                "question-answering",
+                model=MODEL_ID
+            )
+    return qa_pipe
 
 
 class QARequest(BaseModel):
@@ -20,56 +34,43 @@ class QARequest(BaseModel):
     question: str
 
 
-class QAResponse(BaseModel):
-    answer: str
-    meta: Dict[str, Any]
-
-
-def get_pipe():
-    global qa_pipe
-    if qa_pipe is None:
-        with pipe_lock:
-            if qa_pipe is None:
-                qa_pipe = pipeline("question-answering", model=MODEL_ID)
-    return qa_pipe
+@app.get("/")
+def root():
+    return {"message": "qa-local backend up", "docs": "/docs", "health": "/health"}
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "mode": "local", "model": MODEL_ID}
+    return {"status": "ok"}
 
 
-@app.post("/qa", response_model=QAResponse)
+@app.post("/qa")
 def qa(req: QARequest):
     context = (req.context or "").strip()
     question = (req.question or "").strip()
 
     if not context:
-        raise HTTPException(status_code=400, detail="Context is required.")
+        return {"answer": "Please paste some context/passage first.", "meta": "bad_request"}
     if not question:
-        raise HTTPException(status_code=400, detail="Question is required.")
+        return {"answer": "Please type a question.", "meta": "bad_request"}
 
     if len(context) > 8000:
         context = context[:8000] + "..."
 
     t0 = time.time()
     try:
-        qa = get_pipe()
-        out = qa(question=question, context=context)
-        dt = time.time() - t0
-
-        answer = out.get("answer", "") or "(No answer found in the provided context.)"
-        score = out.get("score", None)
-
-        meta = {
-            "mode": "local",
-            "model": MODEL_ID,
-            "time_sec": round(dt, 4),
-        }
-        if score is not None:
-            meta["score"] = float(score)
-
-        return {"answer": answer, "meta": meta}
-
+        pipe = get_pipe()
+        out = pipe(question=question, context=context)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Local error: {e}")
+        return {"answer": f"Local model error: {e}", "meta": "local_error"}
+
+    dt = time.time() - t0
+
+    answer = out.get("answer") or "(No answer found in the provided context.)"
+    score = out.get("score", None)
+
+    meta = f"Mode: Local | Model: {MODEL_ID} | Time: {dt:.2f}s"
+    if score is not None:
+        meta += f" | Score: {score:.3f}"
+
+    return {"answer": answer, "meta": meta}
