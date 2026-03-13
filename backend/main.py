@@ -14,7 +14,6 @@ qa_pipe = None
 def get_pipe():
     global qa_pipe
     if qa_pipe is None:
-        # Use HF token if available for more reliable model download
         if HF_TOKEN:
             qa_pipe = pipeline(
                 "question-answering",
