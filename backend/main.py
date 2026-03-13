@@ -8,6 +8,7 @@ app = FastAPI(title="qa-local backend", version="1.0")
 MODEL_ID = "deepset/bert-base-uncased-squad2"
 qa_pipe = None
 
+
 def get_pipe():
     global qa_pipe
     if qa_pipe is None:
@@ -22,7 +23,11 @@ class QARequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "qa-local backend up", "docs": "/docs", "health": "/health"}
+    return {
+        "message": "qa-local backend up",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 
 @app.get("/health")
@@ -36,28 +41,45 @@ def qa(req: QARequest):
     question = (req.question or "").strip()
 
     if not context:
-        return {"answer": "Please paste some context/passage first.", "meta": "bad_request"}
-    if not question:
-        return {"answer": "Please type a question.", "meta": "bad_request"}
+        return {
+            "answer": "Please paste some context/passage first.",
+            "meta": "bad_request"
+        }
 
-    # Safety trim for large context
+    if not question:
+        return {
+            "answer": "Please type a question.",
+            "meta": "bad_request"
+        }
+
     if len(context) > 8000:
         context = context[:8000] + "..."
 
     t0 = time.time()
+
     try:
         pipe = get_pipe()
         out = pipe(question=question, context=context)
     except Exception as e:
-        return {"answer": f"Local model error: {e}", "meta": "local_error"}
+        return {
+            "answer": f"Local model error: {e}",
+            "meta": "local_error"
+        }
 
     dt = time.time() - t0
 
-    answer = out.get("answer") or "(No answer found in the provided context.)"
-    score = out.get("score", None)
+    if isinstance(out, dict):
+        answer = out.get("answer") or "(No answer found in the provided context.)"
+        score = out.get("score")
+    else:
+        answer = str(out) if out else "(No answer found in the provided context.)"
+        score = None
 
     meta = f"Mode: Local | Model: {MODEL_ID} | Time: {dt:.2f}s"
     if score is not None:
         meta += f" | Score: {score:.3f}"
 
-    return {"answer": answer, "meta": meta}
+    return {
+        "answer": answer,
+        "meta": meta
+    }
